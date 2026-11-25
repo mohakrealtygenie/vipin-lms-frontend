@@ -1,6 +1,10 @@
 "use client"
 
-import { EnvelopeSimpleIcon } from "@phosphor-icons/react/dist/ssr"
+import {
+  EnvelopeSimpleIcon,
+  LockSimpleIcon,
+  LockSimpleOpenIcon,
+} from "@phosphor-icons/react/dist/ssr"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
@@ -17,7 +21,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { getDiagnosticResult, type DiagnosticResultDetail } from "@/lib/api"
+import {
+  getDiagnosticResult,
+  setDiagnosticResultLocked,
+  type DiagnosticResultDetail,
+} from "@/lib/api"
 import { DIAGNOSTIC_ELEMENTS } from "@/lib/diagnostic-questions"
 import {
   CONFIDENCE_EMOJI,
@@ -44,6 +52,8 @@ function ResultDetail() {
   const [data, setData] = useState<DiagnosticResultDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [emailOpen, setEmailOpen] = useState(false)
+  const [lockSaving, setLockSaving] = useState(false)
+  const [lockError, setLockError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -83,6 +93,24 @@ function ResultDetail() {
   }
 
   const name = `${data.firstName} ${data.lastName}`.trim()
+  const firstName = data.firstName.trim() || name || "The student"
+  const unlocked = data.unlockedAt !== null
+
+  // Unlocking lets the student see their score and chapter breakdown on their own diagnostic page.
+  async function setLocked(locked: boolean) {
+    setLockSaving(true)
+    setLockError(null)
+    try {
+      const res = await setDiagnosticResultLocked(id, locked)
+      const unlockedAt = locked ? null : (res?.unlockedAt ?? new Date().toISOString())
+      setData((prev) => (prev ? { ...prev, unlockedAt } : prev))
+    } catch (e) {
+      setLockError(errMsg(e))
+    } finally {
+      setLockSaving(false)
+    }
+  }
+
   const strongest = strongestElement(data.elements)
   const weakest = weakestElement(data.elements)
 
@@ -99,12 +127,27 @@ function ResultDetail() {
         title={name}
         subtitle={data.email}
         actions={
-          <Button variant="outline" onClick={() => setEmailOpen(true)}>
-            <EnvelopeSimpleIcon />
-            Email result
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {unlocked ? (
+              <Button variant="outline" disabled={lockSaving} onClick={() => setLocked(true)}>
+                <LockSimpleIcon />
+                {lockSaving ? "Locking…" : "Lock result"}
+              </Button>
+            ) : (
+              <Button disabled={lockSaving} onClick={() => setLocked(false)}>
+                <LockSimpleOpenIcon />
+                {lockSaving ? "Unlocking…" : "Unlock result"}
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setEmailOpen(true)}>
+              <EnvelopeSimpleIcon />
+              Email result
+            </Button>
+          </div>
         }
       />
+
+      <ErrorNote error={lockError} />
 
       <EmailResultDialog result={data} open={emailOpen} onOpenChange={setEmailOpen} />
 
@@ -132,6 +175,14 @@ function ResultDetail() {
               <div>
                 <dt className="text-xs text-muted-foreground">Taken</dt>
                 <dd className="text-gray-700">{new Date(data.createdAt).toLocaleString()}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Student&apos;s view</dt>
+                <dd className={unlocked ? "font-medium text-teal" : "text-gray-700"}>
+                  {data.unlockedAt
+                    ? `Unlocked ${new Date(data.unlockedAt).toLocaleString()}. ${firstName} can see this result.`
+                    : `Locked. ${firstName} can't see this result yet.`}
+                </dd>
               </div>
             </dl>
           </div>

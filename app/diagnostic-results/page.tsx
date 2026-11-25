@@ -1,7 +1,9 @@
 "use client"
 
 import {
+  CheckCircleIcon,
   EnvelopeSimpleIcon,
+  LockSimpleOpenIcon,
   MagnifyingGlassIcon,
 } from "@phosphor-icons/react/dist/ssr"
 import { useRouter } from "next/navigation"
@@ -24,6 +26,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   listDiagnosticResults,
   listDiagnosticTests,
+  setDiagnosticResultLocked,
   type DiagnosticResultElement,
   type DiagnosticResultList,
   type DiagnosticResultSummary,
@@ -61,6 +64,8 @@ function DiagnosticResults() {
   const [error, setError] = useState<string | null>(null)
   const [emailing, setEmailing] = useState<DiagnosticResultSummary | null>(null)
   const [emailOpen, setEmailOpen] = useState(false)
+  /** The result being unlocked right now, if any. */
+  const [unlocking, setUnlocking] = useState<string | null>(null)
 
   // The tests to filter by. Without them the page still works, just without the filter.
   useEffect(() => {
@@ -123,6 +128,30 @@ function DiagnosticResults() {
   function emailResult(item: DiagnosticResultSummary) {
     setEmailing(item)
     setEmailOpen(true)
+  }
+
+  // Lets the student see their result on their own diagnostic page. Locking it again is on the result page.
+  async function unlockResult(item: DiagnosticResultSummary) {
+    setUnlocking(item.id)
+    setError(null)
+    try {
+      const res = await setDiagnosticResultLocked(item.id, false)
+      const unlockedAt = res?.unlockedAt ?? new Date().toISOString()
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items.map((i) =>
+                i.id === item.id ? { ...i, unlockedAt } : i
+              ),
+            }
+          : prev
+      )
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setUnlocking(null)
+    }
   }
 
   return (
@@ -214,7 +243,7 @@ function DiagnosticResults() {
                   </TableHead>
                   <TableHead className="px-3">Taken</TableHead>
                   <TableHead className="hidden w-0 px-3 lg:table-cell">
-                    <span className="sr-only">Email</span>
+                    <span className="sr-only">Actions</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -272,24 +301,62 @@ function DiagnosticResults() {
                         </p>
                       </TableCell>
                       <TableCell className="px-3 text-xs whitespace-nowrap text-muted-foreground">
-                        {new Date(item.createdAt).toLocaleString()}
+                        {/* Date over time keeps the column narrow enough for the action buttons */}
+                        <span className="block">
+                          {new Date(item.createdAt).toLocaleDateString()}
+                        </span>
+                        <span className="block">
+                          {new Date(item.createdAt).toLocaleTimeString()}
+                        </span>
                       </TableCell>
-                      <TableCell className="hidden px-3 text-right lg:table-cell">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          aria-label={`Email ${name || item.email}'s result`}
-                          title="Email this result"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            emailResult(item)
-                          }}
-                          onKeyDown={(e) => e.stopPropagation()}
-                        >
-                          <EnvelopeSimpleIcon />
-                          Email
-                        </Button>
+                      <TableCell className="hidden px-3 lg:table-cell">
+                        <div className="flex items-center justify-end gap-2">
+                          {item.unlockedAt ? (
+                            <span
+                              className="inline-flex h-8 items-center gap-1.5 px-2 text-xs font-medium whitespace-nowrap text-teal"
+                              title={`Unlocked ${new Date(item.unlockedAt).toLocaleString()}. Lock it again from the result page.`}
+                            >
+                              <CheckCircleIcon
+                                weight="fill"
+                                className="size-4"
+                              />
+                              Unlocked
+                            </span>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={unlocking === item.id}
+                              aria-label={`Unlock ${name || item.email}'s result so they can see it`}
+                              title="Let the student see this result"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                unlockResult(item)
+                              }}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
+                              <LockSimpleOpenIcon />
+                              {unlocking === item.id ? "Unlocking…" : "Unlock"}
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            aria-label={`Email ${name || item.email}'s result`}
+                            title="Email this result"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              emailResult(item)
+                            }}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <EnvelopeSimpleIcon />
+                            {/* The envelope alone below 2xl, where the table has no room for both labels */}
+                            <span className="hidden 2xl:inline">Email</span>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )

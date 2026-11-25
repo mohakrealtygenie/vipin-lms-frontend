@@ -2,9 +2,15 @@
 
 import { ArrowUpRightIcon, CalendarCheckIcon, LockSimpleIcon } from "@phosphor-icons/react/dist/ssr"
 import Link from "next/link"
+import { useEffect, useState } from "react"
 
 import { ErrorNote, PageTitle } from "@/components/app-shell"
+import { RadarChart } from "@/components/diagnostic/radar-chart"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import type { DiagnosticResultElement, MyDiagnosticResult } from "@/lib/api"
+import { DIAGNOSTIC_ELEMENTS } from "@/lib/diagnostic-questions"
+import { elementScorePercent } from "@/lib/diagnostic-score"
 import { cn } from "@/lib/utils"
 
 /** Where a student books the call in which Vipin goes through their diagnostic result with them. */
@@ -50,6 +56,111 @@ export function DiagnosticSubmitted({
       <LockedResult />
     </>
   )
+}
+
+/**
+ * The student's own result, once an admin has unlocked it (usually after the strategy call):
+ * the score, the strongest chapters and those to review, and how they did in each chapter.
+ * The server sends no answers, so nothing here can give away the answer key.
+ */
+export function DiagnosticUnlockedResult({ result }: { result: MyDiagnosticResult }) {
+  const [drawn, setDrawn] = useState(false)
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setDrawn(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
+  const ranked = rankChapters(result.elements)
+  const strongest = ranked.slice(0, 2)
+  const toReview = ranked.slice(-2).reverse()
+  const when = new Date(result.takenAt).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
+
+  return (
+    <>
+      <PageTitle
+        back={BACK}
+        eyebrow={result.testTitle}
+        title="Your result"
+        subtitle={`You took this diagnostic on ${when}. Here is how you did in each chapter.`}
+      />
+
+      <Card className="pop overflow-hidden bg-navy">
+        <CardContent className="space-y-4">
+          <div className="space-y-1">
+            <div className="text-sm text-white/75">Overall</div>
+            <div className="tnum text-5xl font-semibold text-white sm:text-6xl">
+              {result.correct}
+              <span className="text-2xl text-white/60 sm:text-3xl">/{result.total}</span>
+              <span className="ml-3 text-lg font-normal text-white/75 sm:text-xl">correct</span>
+            </div>
+          </div>
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-white/60">Strongest chapters</dt>
+              <dd className="font-medium text-white">{joinChapterNames(strongest)}</dd>
+            </div>
+            <div>
+              <dt className="text-white/60">Chapters to review</dt>
+              <dd className="font-medium text-white">{joinChapterNames(toReview)}</dd>
+            </div>
+          </dl>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-white">
+        <CardContent className="grid items-center gap-8 lg:grid-cols-[1.3fr_1fr] lg:gap-12">
+          <RadarChart
+            labels={result.elements.map((element) => chapterName(element.element))}
+            values={result.elements.map((element) => elementScorePercent(element))}
+          />
+
+          <ul className="divide-y divide-border">
+            {ranked.map((element) => {
+              const percent = elementScorePercent(element)
+              return (
+                <li key={element.element} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-medium text-heading">{chapterName(element.element)}</span>
+                    <span className="tnum shrink-0 text-sm text-muted-foreground">
+                      {element.correct}/{element.total} right · {percent}%
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                    <div
+                      className="h-full rounded-full bg-teal transition-[width] duration-700 ease-out motion-reduce:transition-none"
+                      style={{ width: drawn ? `${percent}%` : "0%" }}
+                    />
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </CardContent>
+      </Card>
+
+      <p className="max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
+        A chapter&apos;s percent weighs how sure you were: a confident right answer counts double, and a wrong answer
+        takes a point away.
+      </p>
+    </>
+  )
+}
+
+function chapterName(element: number) {
+  const found = DIAGNOSTIC_ELEMENTS[element - 1]
+  return found ? found.name : `Chapter ${element}`
+}
+
+/** Highest percent first; ties go to more points, like the admin result page. */
+function rankChapters(elements: DiagnosticResultElement[]) {
+  const ranked = [...elements]
+  ranked.sort((a, b) => elementScorePercent(b) - elementScorePercent(a) || b.points - a.points)
+  return ranked
+}
+
+function joinChapterNames(elements: DiagnosticResultElement[]) {
+  return elements.map((element) => chapterName(element.element)).join(", ")
 }
 
 /** Shown when this email already took the test. */

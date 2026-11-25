@@ -9,19 +9,22 @@ import {
   BackToTests,
   DiagnosticAlreadyTaken,
   DiagnosticSubmitted,
+  DiagnosticUnlockedResult,
 } from "@/components/diagnostic/diagnostic-result"
 import { DiagnosticTest } from "@/components/diagnostic/diagnostic-test"
 import {
   ApiError,
   getDiagnosticQuestions,
   getDiagnosticTest,
+  getMyDiagnosticResult,
   submitDiagnosticResult,
   type DiagnosticQuestion,
   type DiagnosticTestInfo,
+  type MyDiagnosticResult,
 } from "@/lib/api"
 import type { DiagnosticAnswer } from "@/lib/diagnostic-score"
 
-type Stage = "loading" | "missing" | "error" | "intro" | "test" | "submitted" | "taken"
+type Stage = "loading" | "missing" | "error" | "intro" | "test" | "submitted" | "taken" | "result"
 
 export default function DiagnosticTestPage() {
   return (
@@ -36,6 +39,7 @@ function DiagnosticFlow() {
   const [stage, setStage] = useState<Stage>("loading")
   const [test, setTest] = useState<DiagnosticTestInfo | null>(null)
   const [questions, setQuestions] = useState<DiagnosticQuestion[] | null>(null)
+  const [result, setResult] = useState<MyDiagnosticResult | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [wantsStart, setWantsStart] = useState(false)
   const [answers, setAnswers] = useState<DiagnosticAnswer[]>([])
@@ -65,6 +69,20 @@ function DiagnosticFlow() {
       .then((t) => {
         if (cancelled) return
         setTest(t)
+        if (t.taken && t.unlocked) {
+          // An admin unlocked the result: show it. If it was locked again meanwhile (403), show the locked view.
+          return getMyDiagnosticResult(slug)
+            .then((r) => {
+              if (cancelled) return
+              setResult(r)
+              setStage("result")
+            })
+            .catch((e) => {
+              if (cancelled) return
+              if (e instanceof ApiError && e.status === 403) setStage("taken")
+              else failed(e)
+            })
+        }
         if (t.taken) {
           setStage("taken")
           return
@@ -138,6 +156,10 @@ function DiagnosticFlow() {
         <BackToTests />
       </>
     )
+  }
+
+  if (stage === "result" && result) {
+    return <DiagnosticUnlockedResult result={result} />
   }
 
   if (stage === "taken") {

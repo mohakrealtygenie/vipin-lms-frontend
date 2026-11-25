@@ -114,10 +114,15 @@ function TestCard({ test }: { test: DiagnosticTestInfo }) {
         <span
           className={cn(
             "inline-flex items-center gap-1.5 text-sm font-semibold",
-            test.taken ? "text-heading/70" : "text-heading"
+            test.taken && !test.unlocked ? "text-heading/70" : "text-heading"
           )}
         >
-          {test.taken ? (
+          {test.taken && test.unlocked ? (
+            <>
+              See your result
+              <ArrowRightIcon className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+            </>
+          ) : test.taken ? (
             <>
               <LockSimpleIcon weight="fill" className="size-4" />
               Result locked · Book a call to see it

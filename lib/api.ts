@@ -857,7 +857,7 @@ export const getAdminDashboard = (days = 3) =>
   json<AdminDashboard>("GET", "/admin/dashboard", { query: { days } })
 
 // ── diagnostic ──────────────────────────────────────────────────────────────
-/** A diagnostic test a student can take. It never carries a score: only admins see results. */
+/** A diagnostic test a student can take. It never carries a score: the student's own result is fetched separately once unlocked. */
 export type DiagnosticTestInfo = {
   id: string
   /** Used in the URL: /diagnostic/{slug}. */
@@ -871,6 +871,8 @@ export type DiagnosticTestInfo = {
   durationMinutes: number
   taken: boolean
   takenAt: string | null
+  /** An admin unlocked this user's result, so getMyDiagnosticResult returns it. */
+  unlocked: boolean
 }
 
 /** A question as a student sees it: no chapter and no correct answer. The server scores every attempt. */
@@ -915,6 +917,19 @@ export type DiagnosticResultSummary = {
   total: number
   elements: DiagnosticResultElement[]
   createdAt: string
+  /** When an admin let the student see this result; null while it is locked. */
+  unlockedAt: string | null
+}
+
+/** A student's own unlocked result: the score and chapter breakdown, never the answers. */
+export type MyDiagnosticResult = {
+  testSlug: string
+  testTitle: string
+  correct: number
+  total: number
+  elements: DiagnosticResultElement[]
+  takenAt: string
+  unlockedAt: string
 }
 
 export type DiagnosticResultList = {
@@ -942,10 +957,14 @@ export const getDiagnosticQuestions = async (slug: string) =>
 
 /**
  * Sends a finished diagnostic. The server scores it against an answer key the browser never sees,
- * and never returns the score: only admins see results. Answers 409 when the user already took it.
+ * and returns no score: the result stays locked until an admin unlocks it. Answers 409 when the user already took it.
  */
 export const submitDiagnosticResult = (input: { testSlug: string; answers: DiagnosticAnswer[] }) =>
   json<{ id: string; createdAt: string }>("POST", "/diagnostic/results", { body: input })
+
+/** The signed-in user's own result for a test. 403 while it is locked, 404 when they have not taken it. */
+export const getMyDiagnosticResult = (slug: string) =>
+  json<MyDiagnosticResult>("GET", `/diagnostic/tests/${id(slug)}/result`)
 
 /**
  * Admin: everyone who took a diagnostic, newest first, one page at a time. `q` searches name and email;
@@ -961,6 +980,12 @@ export const listDiagnosticResults = (query: {
 /** Admin: one result, including every answer and the test's answer key. */
 export const getDiagnosticResult = (resultId: string) =>
   json<DiagnosticResultDetail>("GET", `/admin/diagnostic/results/${id(resultId)}`)
+
+/** Admin: `locked: false` lets the student see their result on their diagnostic page; `true` hides it again. */
+export const setDiagnosticResultLocked = (resultId: string, locked: boolean) =>
+  json<{ unlockedAt: string | null }>("PATCH", `/admin/diagnostic/results/${id(resultId)}/lock`, {
+    body: { locked },
+  })
 
 /**
  * Admin: emails a result's score and chapter breakdown (never the individual answers) through Resend.
