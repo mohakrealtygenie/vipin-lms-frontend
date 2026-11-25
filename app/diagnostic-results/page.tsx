@@ -12,7 +12,6 @@ import { EmailResultDialog } from "@/components/diagnostic/email-result-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Select } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -21,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   listDiagnosticResults,
   listDiagnosticTests,
@@ -33,6 +33,12 @@ import { DIAGNOSTIC_ELEMENTS } from "@/lib/diagnostic-questions"
 import { elementScorePercent } from "@/lib/diagnostic-score"
 
 const LIMIT = 25
+/** The chip that shows every test. It can never clash with a test: slugs have no underscores. */
+const ALL_TESTS = "__all"
+
+// Same chips as the course filter on the learner pages (components/learning.tsx): navy when chosen.
+const CHIP =
+  "h-8 pointer-coarse:h-10 rounded-full border-border bg-white px-3.5 text-[13px] font-normal text-gray-600 hover:text-heading data-[pressed]:border-navy data-[pressed]:bg-navy data-[pressed]:text-white"
 
 export default function DiagnosticResultsPage() {
   return (
@@ -136,6 +142,35 @@ function DiagnosticResults() {
 
       <Card className="bg-white">
         <CardContent className="space-y-4">
+          {tests.length > 0 && (
+            <div className="rail -mx-(--card-spacing) overflow-x-auto px-(--card-spacing) pb-1 sm:-mx-1 sm:px-1">
+              <ToggleGroup
+                aria-label="Diagnostic test"
+                variant="outline"
+                spacing={1.5}
+                value={[testSlug || ALL_TESTS]}
+                onValueChange={(values: string[]) => {
+                  // A single-choice filter: pressing the chosen chip again keeps it chosen.
+                  const next = values.find((v) => v !== (testSlug || ALL_TESTS))
+                  if (next) filterByTest(next === ALL_TESTS ? "" : next)
+                }}
+              >
+                <ToggleGroupItem value={ALL_TESTS} className={CHIP}>
+                  All tests
+                </ToggleGroupItem>
+                {tests.map((test) => (
+                  <ToggleGroupItem
+                    key={test.slug}
+                    value={test.slug}
+                    className={CHIP}
+                  >
+                    {test.title}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-2">
             <label className="relative block min-w-0 flex-1">
               <span className="sr-only">Search results</span>
@@ -154,22 +189,6 @@ function DiagnosticResults() {
             <Button variant="outline" onClick={search}>
               Search
             </Button>
-            {tests.length > 0 && (
-              <div className="w-full sm:w-64">
-                <Select
-                  aria-label="Diagnostic test"
-                  value={testSlug}
-                  onChange={(e) => filterByTest(e.target.value)}
-                >
-                  <option value="">All tests</option>
-                  {tests.map((test) => (
-                    <option key={test.slug} value={test.slug}>
-                      {test.title}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            )}
           </div>
 
           {loading ? (
