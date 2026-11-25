@@ -30,7 +30,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { DIAGNOSTIC_QUESTIONS } from "@/lib/diagnostic-questions"
+import type { DiagnosticQuestion } from "@/lib/api"
 import {
   CONFIDENCE_EMOJI,
   type DiagnosticAnswer,
@@ -39,7 +39,6 @@ import {
 import { cn } from "@/lib/utils"
 
 const LETTERS = "ABCDEFGHIJ"
-const TOTAL = DIAGNOSTIC_QUESTIONS.length
 
 type Rating = Exclude<DiagnosticConfidence, "none">
 
@@ -49,7 +48,15 @@ const RATINGS: { value: Rating; label: string }[] = [
   { value: "low", label: "Guessing" },
 ]
 
-export function DiagnosticTest({ onSubmit }: { onSubmit: (answers: DiagnosticAnswer[]) => void }) {
+export function DiagnosticTest({
+  questions,
+  onSubmit,
+}: {
+  /** From the server, without the answer key: answers are scored there. */
+  questions: DiagnosticQuestion[]
+  onSubmit: (answers: DiagnosticAnswer[]) => void
+}) {
+  const total = questions.length
   const [index, setIndex] = useState(0)
   const [picked, setPicked] = useState<Record<number, number>>({})
   const [confidence, setConfidence] = useState<Record<number, DiagnosticConfidence>>({})
@@ -58,11 +65,11 @@ export function DiagnosticTest({ onSubmit }: { onSubmit: (answers: DiagnosticAns
   const [confirming, setConfirming] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
 
-  const question = DIAGNOSTIC_QUESTIONS[index]
-  const last = index === TOTAL - 1
+  const question = questions[index]
+  const last = index === total - 1
   const selected = picked[question.id]
   const answered = Object.keys(picked).length
-  const left = TOTAL - answered
+  const left = total - answered
 
   // An answered question needs a confidence rating before the student can move on or submit.
   function isUnrated(id: number) {
@@ -71,7 +78,7 @@ export function DiagnosticTest({ onSubmit }: { onSubmit: (answers: DiagnosticAns
   const unrated = isUnrated(question.id)
 
   function go(next: number) {
-    if (next < 0 || next >= TOTAL) return
+    if (next < 0 || next >= total) return
     if (unrated) {
       setNudge((n) => n + 1)
       return
@@ -92,7 +99,7 @@ export function DiagnosticTest({ onSubmit }: { onSubmit: (answers: DiagnosticAns
   }
 
   function submit() {
-    const pending = DIAGNOSTIC_QUESTIONS.findIndex((q) => isUnrated(q.id))
+    const pending = questions.findIndex((q) => isUnrated(q.id))
     if (pending !== -1) {
       setIndex(pending)
       setNudge((n) => n + 1)
@@ -103,7 +110,7 @@ export function DiagnosticTest({ onSubmit }: { onSubmit: (answers: DiagnosticAns
 
   function finish() {
     const answers: DiagnosticAnswer[] = []
-    for (const q of DIAGNOSTIC_QUESTIONS) {
+    for (const q of questions) {
       answers.push({
         questionId: q.id,
         picked: picked[q.id] ?? -1,
@@ -181,14 +188,14 @@ export function DiagnosticTest({ onSubmit }: { onSubmit: (answers: DiagnosticAns
             <AlertDialogDescription>
               {left > 0
                 ? "Unanswered questions score 0. You can't change your answers after you submit."
-                : `You've answered all ${TOTAL} questions. You can't change your answers after you submit.`}
+                : `You've answered all ${total} questions. You can't change your answers after you submit.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <dl className="tnum grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border text-sm">
             <div className="bg-white px-4 py-3">
               <dt className="text-xs text-muted-foreground">Answered</dt>
               <dd className="mt-0.5 font-medium text-heading">
-                {answered} <span className="font-normal text-gray-400">of {TOTAL}</span>
+                {answered} <span className="font-normal text-gray-400">of {total}</span>
               </dd>
             </div>
             <div className="bg-white px-4 py-3">
@@ -214,11 +221,11 @@ export function DiagnosticTest({ onSubmit }: { onSubmit: (answers: DiagnosticAns
               type="button"
               onClick={() => setNavOpen(true)}
               className="-mx-1.5 flex min-h-9 items-center gap-1 rounded-md px-1.5 text-left transition-colors active:bg-gray-100 sm:pointer-events-none sm:mx-0 sm:min-h-0 sm:px-0"
-              aria-label={`Question ${index + 1} of ${TOTAL}. Show all questions`}
+              aria-label={`Question ${index + 1} of ${total}. Show all questions`}
             >
               <span className="tnum text-[17px] font-semibold tracking-[-0.01em] whitespace-nowrap text-heading sm:text-base sm:tracking-normal">
                 Question {index + 1}
-                <span className="font-normal text-gray-500"> of {TOTAL}</span>
+                <span className="font-normal text-gray-500"> of {total}</span>
               </span>
               <CaretDownIcon weight="bold" className="size-3.5 text-gray-500 sm:hidden" />
             </button>
@@ -232,12 +239,12 @@ export function DiagnosticTest({ onSubmit }: { onSubmit: (answers: DiagnosticAns
           role="progressbar"
           aria-label="Answered"
           aria-valuemin={0}
-          aria-valuemax={TOTAL}
+          aria-valuemax={total}
           aria-valuenow={answered}
         >
           <div
             className="h-full rounded-r-full bg-teal transition-[width] duration-500 ease-(--ease-out) sm:rounded-full"
-            style={{ width: `${(answered / TOTAL) * 100}%` }}
+            style={{ width: `${(answered / total) * 100}%` }}
           />
         </div>
       </div>
@@ -350,7 +357,7 @@ export function DiagnosticTest({ onSubmit }: { onSubmit: (answers: DiagnosticAns
           <span className="text-sm font-semibold text-heading">All questions</span>
           <Legend />
         </div>
-        <QuestionNumbers index={index} picked={picked} onGo={go} />
+        <QuestionNumbers questions={questions} index={index} picked={picked} onGo={go} />
       </nav>
 
       {/* Phones: every question in a bottom sheet opened from the status bar. */}
@@ -363,12 +370,12 @@ export function DiagnosticTest({ onSubmit }: { onSubmit: (answers: DiagnosticAns
           <SheetHeader className="px-5 pt-3 pb-4">
             <SheetTitle className="text-base font-semibold text-heading">All questions</SheetTitle>
             <SheetDescription className="tnum">
-              {answered} of {TOTAL} answered
+              {answered} of {total} answered
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4 overflow-y-auto px-5 pb-5">
             <Legend />
-            <QuestionNumbers
+            <QuestionNumbers questions={questions}
               index={index}
               picked={picked}
               onGo={(next) => {
@@ -494,17 +501,19 @@ function Legend() {
 }
 
 function QuestionNumbers({
+  questions,
   index,
   picked,
   onGo,
 }: {
+  questions: DiagnosticQuestion[]
   index: number
   picked: Record<number, number>
   onGo: (index: number) => void
 }) {
   return (
     <ol className="grid grid-cols-[repeat(auto-fill,minmax(2.75rem,1fr))] gap-2 sm:flex sm:flex-wrap sm:gap-1.5">
-      {DIAGNOSTIC_QUESTIONS.map((question, i) => {
+      {questions.map((question, i) => {
         const answered = picked[question.id] !== undefined
         const here = i === index
         return (

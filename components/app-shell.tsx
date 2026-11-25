@@ -7,8 +7,9 @@ import {
   ChartBarIcon,
   CaretUpDownIcon,
   ChartLineUpIcon,
+  ClipboardTextIcon,
   CompassIcon,
-    ListChecksIcon,
+  ListChecksIcon,
   NewspaperIcon,
   NotePencilIcon,
   PlayCircleIcon,
@@ -129,6 +130,12 @@ const NAV: Record<
       label: "Practice & Prepare",
       short: "Practice",
       icon: ListChecksIcon,
+    },
+    {
+      href: "/diagnostic",
+      label: "Diagnostic tests",
+      short: "Diagnostic",
+      icon: ClipboardTextIcon,
     },
     {
       href: "/flashcards",
@@ -330,7 +337,7 @@ function AccountButton({ user, onSignOut }: { user: User; onSignOut: () => void 
   )
 }
 
-const FOCUSED = /^\/(quizzes\/|flashcards\/study|diagnostic$)/
+const FOCUSED = /^\/(quizzes\/|flashcards\/study|diagnostic\/)/
 
 /**
  * Apple's spring, by damping ratio and response (seconds): progress 0→1 at t seconds, and its velocity,

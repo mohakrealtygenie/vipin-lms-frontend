@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getDiagnosticResult, type DiagnosticResultDetail } from "@/lib/api"
-import { DIAGNOSTIC_ELEMENTS, DIAGNOSTIC_QUESTIONS } from "@/lib/diagnostic-questions"
+import { DIAGNOSTIC_ELEMENTS } from "@/lib/diagnostic-questions"
 import {
   CONFIDENCE_EMOJI,
   CONFIDENCE_LABEL,
@@ -89,7 +89,7 @@ function ResultDetail() {
 
   return (
     <>
-      <PageTitle back={BACK} title={name} subtitle={data.email} />
+      <PageTitle back={BACK} eyebrow={data.testTitle} title={name} subtitle={data.email} />
 
       <Card className="bg-white">
         <CardContent className="grid items-center gap-8 lg:grid-cols-[1.4fr_1fr] lg:gap-12">
@@ -163,7 +163,7 @@ function ResultDetail() {
 
         {DIAGNOSTIC_ELEMENTS.map((_, index) => {
           const elementNumber = index + 1
-          const questions = DIAGNOSTIC_QUESTIONS.filter(
+          const questions = data.questions.filter(
             (question) => question.element === elementNumber
           )
           const elementScore = data.elements.find(

@@ -857,6 +857,36 @@ export const getAdminDashboard = (days = 3) =>
   json<AdminDashboard>("GET", "/admin/dashboard", { query: { days } })
 
 // ── diagnostic ──────────────────────────────────────────────────────────────
+/** A diagnostic test a student can take. It never carries a score: only admins see results. */
+export type DiagnosticTestInfo = {
+  id: string
+  /** Used in the URL: /diagnostic/{slug}. */
+  slug: string
+  title: string
+  description: string
+  /** Empty when the test isn't tied to an exam. */
+  examCode: string
+  examName: string
+  questionCount: number
+  durationMinutes: number
+  taken: boolean
+  takenAt: string | null
+}
+
+/** A question as a student sees it: no chapter and no correct answer. The server scores every attempt. */
+export type DiagnosticQuestion = {
+  id: number
+  question: string
+  options: string[]
+}
+
+/** A question with its chapter and correct answer. Only admins ever receive these. */
+export type DiagnosticQuestionKey = DiagnosticQuestion & {
+  element: number
+  /** Index into options of the correct answer. */
+  answer: number
+}
+
 export type DiagnosticResultElement = {
   element: number
   correct: number
@@ -879,6 +909,8 @@ export type DiagnosticResultSummary = {
   firstName: string
   lastName: string
   email: string
+  testSlug: string
+  testTitle: string
   correct: number
   total: number
   elements: DiagnosticResultElement[]
@@ -892,36 +924,37 @@ export type DiagnosticResultList = {
 
 export type DiagnosticResultDetail = DiagnosticResultSummary & {
   answers: DiagnosticResultAnswer[]
+  /** The test's questions with their correct answers, in order. */
+  questions: DiagnosticQuestionKey[]
 }
 
-export type DiagnosticSubmitInput = {
-  correct: number
-  total: number
-  elements: {
-    element: number
-    correct: number
-    total: number
-    points: number
-    maxPoints: number
-  }[]
-  answers: DiagnosticAnswer[]
-}
+/** Every diagnostic test the signed-in user can take, with whether they already took each. */
+export const listDiagnosticTests = async () =>
+  (await json<DiagnosticTestInfo[]>("GET", "/diagnostic/tests")) ?? []
 
-/** Saves a finished diagnostic for the signed-in user. Answers 409 when they already took it. The score is never returned: only admins see results. */
-export const submitDiagnosticResult = (input: DiagnosticSubmitInput) =>
+/** One diagnostic test. 404 when there is no such active test. */
+export const getDiagnosticTest = (slug: string) =>
+  json<DiagnosticTestInfo>("GET", `/diagnostic/tests/${id(slug)}`)
+
+/** The questions to answer, without the answer key. 409 once the signed-in user has taken the test. */
+export const getDiagnosticQuestions = async (slug: string) =>
+  (await json<DiagnosticQuestion[]>("GET", `/diagnostic/tests/${id(slug)}/questions`)) ?? []
+
+/**
+ * Sends a finished diagnostic. The server scores it against an answer key the browser never sees,
+ * and never returns the score: only admins see results. Answers 409 when the user already took it.
+ */
+export const submitDiagnosticResult = (input: { testSlug: string; answers: DiagnosticAnswer[] }) =>
   json<{ id: string; createdAt: string }>("POST", "/diagnostic/results", { body: input })
 
-/** Did the signed-in user already take the diagnostic. Each email can take it once. */
-export const getDiagnosticStatus = () => json<{ taken: boolean }>("GET", "/diagnostic/status")
-
-/** Admin: everyone who took the diagnostic, newest first, with an optional name/email search. */
+/** Admin: everyone who took a diagnostic, newest first, with an optional name/email search. */
 export const listDiagnosticResults = (query: {
   limit?: number
   offset?: number
   q?: string
 }) => json<DiagnosticResultList>("GET", "/admin/diagnostic/results", { query })
 
-/** Admin: one result, including every answer. */
+/** Admin: one result, including every answer and the test's answer key. */
 export const getDiagnosticResult = (resultId: string) =>
   json<DiagnosticResultDetail>("GET", `/admin/diagnostic/results/${id(resultId)}`)
 
