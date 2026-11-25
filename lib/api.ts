@@ -947,11 +947,15 @@ export const getDiagnosticQuestions = async (slug: string) =>
 export const submitDiagnosticResult = (input: { testSlug: string; answers: DiagnosticAnswer[] }) =>
   json<{ id: string; createdAt: string }>("POST", "/diagnostic/results", { body: input })
 
-/** Admin: everyone who took a diagnostic, newest first, with an optional name/email search. */
+/**
+ * Admin: everyone who took a diagnostic, newest first, one page at a time. `q` searches name and email;
+ * `test` (a test slug) keeps only that test's results.
+ */
 export const listDiagnosticResults = (query: {
   limit?: number
   offset?: number
   q?: string
+  test?: string
 }) => json<DiagnosticResultList>("GET", "/admin/diagnostic/results", { query })
 
 /** Admin: one result, including every answer and the test's answer key. */

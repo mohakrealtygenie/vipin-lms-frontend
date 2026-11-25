@@ -1,6 +1,9 @@
 "use client"
 
-import { EnvelopeSimpleIcon, MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr"
+import {
+  EnvelopeSimpleIcon,
+  MagnifyingGlassIcon,
+} from "@phosphor-icons/react/dist/ssr"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
@@ -9,6 +12,7 @@ import { EmailResultDialog } from "@/components/diagnostic/email-result-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -19,9 +23,11 @@ import {
 } from "@/components/ui/table"
 import {
   listDiagnosticResults,
+  listDiagnosticTests,
   type DiagnosticResultElement,
   type DiagnosticResultList,
   type DiagnosticResultSummary,
+  type DiagnosticTestInfo,
 } from "@/lib/api"
 import { DIAGNOSTIC_ELEMENTS } from "@/lib/diagnostic-questions"
 import { elementScorePercent } from "@/lib/diagnostic-score"
@@ -41,11 +47,27 @@ function DiagnosticResults() {
   const [page, setPage] = useState(0)
   const [query, setQuery] = useState("")
   const [appliedQuery, setAppliedQuery] = useState("")
+  /** Slug of the test to show results for; empty shows every test. */
+  const [testSlug, setTestSlug] = useState("")
+  const [tests, setTests] = useState<DiagnosticTestInfo[]>([])
   const [data, setData] = useState<DiagnosticResultList | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [emailing, setEmailing] = useState<DiagnosticResultSummary | null>(null)
   const [emailOpen, setEmailOpen] = useState(false)
+
+  // The tests to filter by. Without them the page still works, just without the filter.
+  useEffect(() => {
+    let cancelled = false
+    listDiagnosticTests()
+      .then((res) => {
+        if (!cancelled) setTests(res)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -56,6 +78,7 @@ function DiagnosticResults() {
       limit: LIMIT,
       offset: page * LIMIT,
       q: appliedQuery || undefined,
+      test: testSlug || undefined,
     })
       .then((res) => {
         if (cancelled) return
@@ -71,7 +94,7 @@ function DiagnosticResults() {
     return () => {
       cancelled = true
     }
-  }, [page, appliedQuery])
+  }, [page, appliedQuery, testSlug])
 
   const items = data?.items ?? []
   const total = data?.total ?? 0
@@ -80,6 +103,11 @@ function DiagnosticResults() {
   function search() {
     setPage(0)
     setAppliedQuery(query.trim())
+  }
+
+  function filterByTest(slug: string) {
+    setPage(0)
+    setTestSlug(slug)
   }
 
   function openResult(id: string) {
@@ -95,10 +123,14 @@ function DiagnosticResults() {
     <>
       <PageTitle
         title="Diagnostic results"
-        subtitle="Everyone who has taken the skill diagnostic, with their two strongest elements."
+        subtitle="Everyone who has taken a diagnostic test, which test they took, and their two strongest elements."
       />
 
-      <EmailResultDialog result={emailing} open={emailOpen} onOpenChange={setEmailOpen} />
+      <EmailResultDialog
+        result={emailing}
+        open={emailOpen}
+        onOpenChange={setEmailOpen}
+      />
 
       <ErrorNote error={error} />
 
@@ -122,20 +154,45 @@ function DiagnosticResults() {
             <Button variant="outline" onClick={search}>
               Search
             </Button>
+            {tests.length > 0 && (
+              <div className="w-full sm:w-64">
+                <Select
+                  aria-label="Diagnostic test"
+                  value={testSlug}
+                  onChange={(e) => filterByTest(e.target.value)}
+                >
+                  <option value="">All tests</option>
+                  {tests.map((test) => (
+                    <option key={test.slug} value={test.slug}>
+                      {test.title}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
           </div>
 
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No diagnostic results match.</p>
+            <p className="text-sm text-muted-foreground">
+              {appliedQuery || testSlug
+                ? "No diagnostic results match."
+                : "No one has taken a diagnostic test yet."}
+            </p>
           ) : (
             <Table>
               <TableHeader className="bg-muted/60">
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="px-3">Name</TableHead>
                   <TableHead className="px-3">Email</TableHead>
+                  <TableHead className="hidden px-3 md:table-cell">
+                    Test
+                  </TableHead>
                   <TableHead className="px-3">Score</TableHead>
-                  <TableHead className="hidden px-3 sm:table-cell">Strongest</TableHead>
+                  <TableHead className="hidden px-3 sm:table-cell">
+                    Strongest
+                  </TableHead>
                   <TableHead className="px-3">Taken</TableHead>
                   <TableHead className="hidden w-0 px-3 lg:table-cell">
                     <span className="sr-only">Email</span>
@@ -158,13 +215,31 @@ function DiagnosticResults() {
                       }}
                     >
                       <TableCell className="max-w-0 min-w-32 px-3">
-                        <p className="truncate font-medium text-heading" title={name}>
+                        <p
+                          className="truncate font-medium text-heading"
+                          title={name}
+                        >
                           {name}
+                        </p>
+                        {/* Narrow screens have no Test column, so the test goes under the name */}
+                        <p
+                          className="line-clamp-2 text-xs whitespace-normal text-muted-foreground md:hidden"
+                          title={item.testTitle}
+                        >
+                          {item.testTitle}
                         </p>
                       </TableCell>
                       <TableCell className="max-w-0 min-w-44 px-3">
-                        <p className="truncate text-xs text-muted-foreground" title={item.email}>
+                        <p
+                          className="truncate text-xs text-muted-foreground"
+                          title={item.email}
+                        >
                           {item.email}
+                        </p>
+                      </TableCell>
+                      <TableCell className="hidden px-3 whitespace-normal md:table-cell">
+                        <p className="max-w-48 min-w-32 text-sm text-gray-700">
+                          {item.testTitle}
                         </p>
                       </TableCell>
                       <TableCell className="tnum px-3 text-heading">
@@ -172,7 +247,9 @@ function DiagnosticResults() {
                       </TableCell>
                       <TableCell className="hidden px-3 whitespace-normal sm:table-cell">
                         <p className="max-w-64 text-sm whitespace-normal text-gray-700">
-                          {top.map((element) => elementName(element.element)).join(", ")}
+                          {top
+                            .map((element) => elementName(element.element))
+                            .join(", ")}
                         </p>
                       </TableCell>
                       <TableCell className="px-3 text-xs whitespace-nowrap text-muted-foreground">
