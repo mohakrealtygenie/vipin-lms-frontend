@@ -958,6 +958,13 @@ export const listDiagnosticResults = (query: {
 export const getDiagnosticResult = (resultId: string) =>
   json<DiagnosticResultDetail>("GET", `/admin/diagnostic/results/${id(resultId)}`)
 
+/**
+ * Admin: emails a result's score and chapter breakdown (never the individual answers) through Resend.
+ * `to` defaults to the person who took the test; `note` is shown above the results. Delivery is queued.
+ */
+export const emailDiagnosticResult = (resultId: string, input: { to?: string; note?: string }) =>
+  json<{ to: string }>("POST", `/admin/diagnostic/results/${id(resultId)}/email`, { body: input })
+
 // ── exams ───────────────────────────────────────────────────────────────────
 export const listExams = async () => (await json<Exam[]>("GET", "/exams")) ?? []
 

@@ -1,10 +1,11 @@
 "use client"
 
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr"
+import { EnvelopeSimpleIcon, MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { AppShell, ErrorNote, PageTitle, errMsg } from "@/components/app-shell"
+import { EmailResultDialog } from "@/components/diagnostic/email-result-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,6 +21,7 @@ import {
   listDiagnosticResults,
   type DiagnosticResultElement,
   type DiagnosticResultList,
+  type DiagnosticResultSummary,
 } from "@/lib/api"
 import { DIAGNOSTIC_ELEMENTS } from "@/lib/diagnostic-questions"
 import { elementScorePercent } from "@/lib/diagnostic-score"
@@ -42,6 +44,8 @@ function DiagnosticResults() {
   const [data, setData] = useState<DiagnosticResultList | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [emailing, setEmailing] = useState<DiagnosticResultSummary | null>(null)
+  const [emailOpen, setEmailOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -82,12 +86,19 @@ function DiagnosticResults() {
     router.push(`/diagnostic-results/${id}`)
   }
 
+  function emailResult(item: DiagnosticResultSummary) {
+    setEmailing(item)
+    setEmailOpen(true)
+  }
+
   return (
     <>
       <PageTitle
         title="Diagnostic results"
         subtitle="Everyone who has taken the skill diagnostic, with their two strongest elements."
       />
+
+      <EmailResultDialog result={emailing} open={emailOpen} onOpenChange={setEmailOpen} />
 
       <ErrorNote error={error} />
 
@@ -126,6 +137,9 @@ function DiagnosticResults() {
                   <TableHead className="px-3">Score</TableHead>
                   <TableHead className="hidden px-3 sm:table-cell">Strongest</TableHead>
                   <TableHead className="px-3">Taken</TableHead>
+                  <TableHead className="hidden w-0 px-3 lg:table-cell">
+                    <span className="sr-only">Email</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -163,6 +177,23 @@ function DiagnosticResults() {
                       </TableCell>
                       <TableCell className="px-3 text-xs whitespace-nowrap text-muted-foreground">
                         {new Date(item.createdAt).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="hidden px-3 text-right lg:table-cell">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          aria-label={`Email ${name || item.email}'s result`}
+                          title="Email this result"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            emailResult(item)
+                          }}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <EnvelopeSimpleIcon />
+                          Email
+                        </Button>
                       </TableCell>
                     </TableRow>
                   )

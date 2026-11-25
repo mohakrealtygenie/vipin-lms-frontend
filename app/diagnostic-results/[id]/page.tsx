@@ -1,10 +1,13 @@
 "use client"
 
+import { EnvelopeSimpleIcon } from "@phosphor-icons/react/dist/ssr"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { AppShell, ErrorNote, PageTitle, errMsg } from "@/components/app-shell"
+import { EmailResultDialog } from "@/components/diagnostic/email-result-dialog"
 import { RadarChart } from "@/components/diagnostic/radar-chart"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -40,6 +43,7 @@ function ResultDetail() {
   const { id } = useParams<{ id: string }>()
   const [data, setData] = useState<DiagnosticResultDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [emailOpen, setEmailOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -89,7 +93,20 @@ function ResultDetail() {
 
   return (
     <>
-      <PageTitle back={BACK} eyebrow={data.testTitle} title={name} subtitle={data.email} />
+      <PageTitle
+        back={BACK}
+        eyebrow={data.testTitle}
+        title={name}
+        subtitle={data.email}
+        actions={
+          <Button variant="outline" onClick={() => setEmailOpen(true)}>
+            <EnvelopeSimpleIcon />
+            Email result
+          </Button>
+        }
+      />
+
+      <EmailResultDialog result={data} open={emailOpen} onOpenChange={setEmailOpen} />
 
       <Card className="bg-white">
         <CardContent className="grid items-center gap-8 lg:grid-cols-[1.4fr_1fr] lg:gap-12">
